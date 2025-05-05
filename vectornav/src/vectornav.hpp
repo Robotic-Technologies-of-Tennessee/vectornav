@@ -25,12 +25,24 @@
 #include <vectornav_msgs/msg/time_group.hpp>
 #include "vectornav_msgs/action/mag_cal.hpp"
 #include <geometry_msgs/msg/twist.hpp>
+#include "vectornav_msgs/srv/diagnostics.hpp"
 
 // VectorNav libvncxx
 #include "vn/compositedata.h"
 #include "vn/sensors.h"
 
 namespace vectornav {
+
+  struct TopicEnables{
+    bool common;
+    bool time;
+    bool imu;
+    bool attitude;
+    bool gps;
+    bool gps2;
+    bool ins;
+  };
+
   class Vectornav : public rclcpp::Node
   {
   public:
@@ -99,6 +111,11 @@ namespace vectornav {
     static inline vectornav_msgs::msg::TimeStatus toMsg(const uint8_t rhs);
     static inline vectornav_msgs::msg::InsStatus toMsg(const vn::protocol::uart::InsStatus & rhs);
 
+    ///Diagnostics cb
+    void diagnosticsCb(const std::shared_ptr<vectornav_msgs::srv::Diagnostics::Request> request,
+      std::shared_ptr<vectornav_msgs::srv::Diagnostics::Response> response);
+    
+    
     /// Count the number of set bits in a number
     template <typename T>
     static uint countSetBits(T n)
@@ -129,10 +146,14 @@ namespace vectornav {
     rclcpp::Publisher<vectornav_msgs::msg::AttitudeGroup>::SharedPtr pub_attitude_;
     rclcpp::Publisher<vectornav_msgs::msg::InsGroup>::SharedPtr pub_ins_;
     rclcpp::Publisher<vectornav_msgs::msg::GpsGroup>::SharedPtr pub_gps2_;
+    rclcpp::Service<vectornav_msgs::srv::Diagnostics>::SharedPtr srv_diagnostics_;
 
     /// ROS header time stamp adjustments
     double averageTimeDifference_{0};
     bool adjustROSTimeStamp_{false};
+
+    //publisher enables
+    static TopicEnables topicEnables;
   
     // Subscriptions
     rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr sub_vel_aiding_;

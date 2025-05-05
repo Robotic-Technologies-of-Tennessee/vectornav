@@ -1,42 +1,87 @@
-vectornav:
+# Reference vnproglib-1.2.0.0 headers for enum definitions
+#Note: view types.h to find all enum values.
+
+
+vectornav: #Handles all sensor communications and publishes to vectornav/raw topics 
   ros__parameters:
+####### System #######
     port: "/dev/ttyUSB0"
+    #3.2.2 Baud Rate
     baud: 115200
     reconnect_ms: 500
-    # Reference vnproglib-1.2.0.0 headers for enum definitions
-    # Async Output Type (ASCII)
-    AsyncDataOutputType: 0           # VNOFF
-    # Async output Frequency (Hz)
-    AsyncDataOutputFrequency: 20
-    # Sync control
-    syncInMode: 3                    # SYNCINMODE_COUNT
-    syncInEdge: 0                    # SYNCINEDGE_RISING
-    syncInSkipFactor: 0
-    syncOutMode: 0                   # SYNCOUTMODE_NONE
-    syncOutPolarity: 0               # SYNCOUTPOLARITY_NEGATIVE
-    syncOutSkipFactor: 0
+    adjust_ros_timestamp: false # FIXME: What does this do?
+    
+    # Async Output Type (ASCII) 3.2.3
+    AsyncDataOutputType: 0           # (0: Binary, 1+:specifies ASCII message to send)
+    # Async output Frequency (Hz)  3.2.4
+    AsyncDataOutputFrequency: 20    # Sets ASCII Output Rate
+    # Sync control 3.2.6: Controls Behavior for syncin/out events occur for
+    # synchronization to external devices
+    syncInMode: 3                    # 3: count 4: IMU_synced 5: asyncall 6: Async0
+    syncInEdge: 0                    # 0: rising 1: falling
+    syncInSkipFactor: 0              # no. of sync_in events to 'skip' before activating
+    syncOutMode: 0                   # 0: none 1: imuStart 2: imuReady 3: navReady
+    syncOutPolarity: 0               # 0: active_low 1: active_high
+    syncOutSkipFactor: 0             # no. of sync_out events to 'skip' before activating
     syncOutPulseWidth_ns: 100000000
-    # Communication protocol control
-    serialCount: 0                   # COUNTMODE_NONE
-    serialStatus: 0                  # STATUSMODE_OFF
+    
+    # Communication protocol control 3.2.5: 
+      # Serial Count: Selects which counter to append to all ASCII Messages
+    serialCount: 0                   # 0: off 1: sync_in count, 2: sync_in time 3: sync_out count 
+      # Status message to append to ASCII
+    serialStatus: 0                  # 0: off, 1: on
+      # status to append to spi      # same as serial count
     spiCount: 0                      # COUNTMODE_NONE
     spiStatus: 0                     # STATUSMODE_OFF
-    serialChecksum: 1                # CHECKSUMMODE_CHECKSUM
-    spiChecksum: 0                   # CHECKSUMMODE_OFF
-    errorMode: 1                     # ERRORMODE_SEND
+    serialChecksum: 1                # 1: 8bit checksum  2: 16-bit CRC
+    spiChecksum: 0                   # 0: off 1: 8bit checksum  2: 16-bit CRC
+    errorMode: 1                     # 0: ignore 1: send 2: send and turn ASCII register off
     # Binary output register 1
-    BO1:
-      asyncMode: 3                   # ASYNCMODE_BOTH
+    BO1: #3.2.8
+      # 0: None | 1: Serial port 1 | 2: Serial Port 2 | 3: Both
+      asyncMode: 3
+      # 800 / ratedivisor = frequency
       rateDivisor: 40                # 20 Hz
+      
+      #OUTPUT GROUPS: 
+      # 0x00: none | 0x01: TimeStartup | 0x02: TimeGPS | 0x04: Time sync_in 
+      # 0x08: Ypr  | 0x0010: quaternion| 0x0020: angular rate
+      # 0x0040: position | 0x0080: velocity | 0x0100: acceleration
+      # 0x0200: imu | 0x0400: mag,temp,pressure | 0x0800: deltas | 0x1000: InsStatus
+      # 0x2000: sync_in count | 0x4000: Time GPS pps
+      # 2.2 Common Group: Contains common fields used from each of the other binary groups
       commonField: 0x7FFF
+
+      #Time group 2.3
       timeField: 0x0000              # TIMEGROUP_NONE
+      
+      
+      #IMU Group 2.4: (rad/s, m/s^2)
+      # 0x0000: none | 0x0001 IMU Status
+      # 0x0002: uncomp mag | 0x0004: uncomp accel | 0x0008: uncomp gyro
+      # 0x0010: Temp | 0x0020: Pressure | 
+      # 0x0040: delta theta-> delta rotation angles incurred since last time values were output (ang vel error)
+      # 0x0080: delta_vel-> delta velocity incurred due to motion (vel error)
+      # 0x0100: mag(compensated) | 0x0200: accel(compensated) | 0x0400: angRate(compensated)
+      # 0x0800: sensor saturation: flags identifying whether anything is saturated.
       imuField: 0x0000               # IMUGROUP_NONE
+
+
       # set gpsField directly in source to enforce or condition
+
+
+      #Attitude Group 2.6:
+      #0x0000: None | 0x0001: Vpe status? | 0x0002: Ypr | 0x0004: quaternion
+      #0x0008: DCM (Direction Cosine Matrix) | 0x0010: MagNED (mag field in local frame)
+      #0x0020: AccelNED | 0x0040: linAcc: est. linear acc in body frame
+      #0x0080: linAccelNED | 0x0100: YprU: est. attitude uncertainty (in degrees)  
       attitudeField: 0x0000          # ATTITUDEGROUP_NONE
       # set insField directly in source to enforce or condition
+
+      #GNSS Group 2.5
       gps2Field: 0x0000              # GPSGROUP_NONE
     # Binary output register 2
-    BO2:
+    BO2: #3.2.9
       asyncMode: 0                   # ASYNCMODE_NONE
       rateDivisor: 0
       commonField: 0x0000            # COMMONGROUP_NONE
@@ -47,7 +92,7 @@ vectornav:
       insField: 0x0000               # INSGROUP_NONE
       gps2Field: 0x0000              # GPSGROUP_NONE
     # Binary output register 3
-    BO3:
+    BO3: # 3.2.10
       asyncMode: 0                   # ASYNCMODE_NONE
       rateDivisor: 0
       commonField: 0x0000            # COMMONGROUP_NONE
@@ -59,7 +104,14 @@ vectornav:
       gps2Field: 0x0000              # GPSGROUP_NONE
     frame_id: "vectornav"
 
-vn_sensor_msgs:
+    use_mag_model: true
+    use_grav_model: true
+    recalc_threshold: 1000
+    WMM_latitude: 0.0
+    WMM_longitude: 0.0
+    WMM_altitude: 0.0
+
+vn_sensor_msgs: #Puts data into a more friendly ROS2 version
   ros__parameters:
     use_enu: true  # this will convert from Forward-Right-Down body axes in NED to Right-Forward-Up body axes in ENU
     orientation_covariance: [0.01,  0.0,   0.0,

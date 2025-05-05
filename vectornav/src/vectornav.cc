@@ -37,6 +37,12 @@ namespace vectornav
 {
 using MagCal = vectornav_msgs::action::MagCal;
 
+
+TopicEnables Vectornav::topicEnables;
+
+/**
+ * Vectornav: Initializes ROS2 node, reads in parameters, establishes publishers
+ */
 Vectornav::Vectornav(const rclcpp::NodeOptions & options) : Node("vectornav", options)
 {
   //
@@ -147,26 +153,116 @@ Vectornav::Vectornav(const rclcpp::NodeOptions & options) : Node("vectornav", op
   // Message Header
   declare_parameter<std::string>("frame_id", "vectornav");
 
-  // Composite Data Publisher
-  pub_common_ =
-    this->create_publisher<vectornav_msgs::msg::CommonGroup>("vectornav/raw/common", 10);
-  pub_time_ = this->create_publisher<vectornav_msgs::msg::TimeGroup>("vectornav/raw/time", 10);
-  pub_imu_ = this->create_publisher<vectornav_msgs::msg::ImuGroup>("vectornav/raw/imu", 10);
-  pub_gps_ = this->create_publisher<vectornav_msgs::msg::GpsGroup>("vectornav/raw/gps", 10);
-  pub_attitude_ =
-    this->create_publisher<vectornav_msgs::msg::AttitudeGroup>("vectornav/raw/attitude", 10);
-  pub_ins_ = this->create_publisher<vectornav_msgs::msg::InsGroup>("vectornav/raw/ins", 10);
-  pub_gps2_ = this->create_publisher<vectornav_msgs::msg::GpsGroup>("vectornav/raw/gps2", 10);
+  //Velocity Aiding Topic
+  declare_parameter<std::string>("velocity_aiding_topic", "vectornav/velocity_aiding");
 
-  sub_vel_aiding_ = this->create_subscription<geometry_msgs::msg::Twist>(
-    "vectornav/velocity_aiding", 1, std::bind(&Vectornav::vel_aiding_cb, this, _1));
+  //Print sensor Status
+  declare_parameter<bool>("print_sensor_status", false);
+
+
+  declare_parameter<bool>("use_mag_model", false);
+  declare_parameter<bool>("use_grav_model", false);
+  declare_parameter<int>("recalc_threshold", 1000);
+  declare_parameter<double>("WMM_latitude", 0.0);
+  declare_parameter<double>("WMM_longitude", 0.0);
+  declare_parameter<double>("WMM_altitude", 0.0);
+ 
+  std::string vel_aid_topic = get_parameter("velocity_aiding_topic").as_string();
+  
+  bool enable_common_pub_=false, enable_time_pub_=false, enable_imu_pub_=false;
+  bool enable_gps_pub_=false, enable_attitude_pub_=false, enable_ins_pub_=false, enable_gps2_pub_=false;
+
+  auto boRegs = std::vector<std::string>{"BO1", "BO2", "BO3"};
+
+  for (auto name: boRegs){
+    int commonField = get_parameter(name + ".commonField").as_int();
+
+    std::cout << "Common Field for " << name << ": " << commonField << std::endl;
+    
+
+    if(commonField > 0){
+      enable_common_pub_ = true;
+    }
+    if(get_parameter(name + ".timeField").as_int() > 0 || (commonField & 0x6007) > 0){
+      std::cout <<  "Time: " << get_parameter(name + ".timeField").as_int() << std::endl;
+      enable_time_pub_ = true;
+    }
+    if(get_parameter(name + ".imuField").as_int() > 0 || (commonField & 0x0F20) > 0){
+      enable_imu_pub_ = true;
+    }
+    if(get_parameter(name + ".gpsField").as_int() > 0){
+      std::cout << "GPS Field: " << name << " -> " << get_parameter(name + ".gpsField").as_int() << std::endl;
+      enable_gps_pub_ = true;
+    }
+    if(get_parameter(name + ".attitudeField").as_int() > 0 || (commonField & 0x0018) > 0){
+      enable_attitude_pub_ = true;
+    }
+    if(get_parameter(name + ".insField").as_int() > 0 || (commonField & 0x10C0) > 0){
+      std::cout << "INS Field: " << name << " -> " << get_parameter(name + ".insField").as_int() << std::endl;
+      enable_ins_pub_ = true;
+    }
+    if(get_parameter(name + ".gps2Field").as_int() > 0){
+      enable_gps2_pub_ = true;
+    }
+  }
+  
+  
+  topicEnables.common = enable_common_pub_;
+  topicEnables.time = enable_time_pub_;
+  topicEnables.imu = enable_imu_pub_;
+  topicEnables.attitude = enable_attitude_pub_;
+  topicEnables.gps = enable_gps_pub_;
+  topicEnables.gps2 = enable_gps2_pub_;
+  topicEnables.ins = enable_ins_pub_;
+
+  // Composite Data Publisher
+  if(enable_common_pub_){
+    std::cout << "Enabling Common Publisher" << std::endl;
+    pub_common_ =
+    this->create_publisher<vectornav_msgs::msg::CommonGroup>("vectornav/raw/common", 10);
+  }
+  
+  if(enable_time_pub_){
+    pub_time_ = this->create_publisher<vectornav_msgs::msg::TimeGroup>("vectornav/raw/time", 10);
+  }
+  
+  if(enable_imu_pub_){
+    pub_imu_ = this->create_publisher<vectornav_msgs::msg::ImuGroup>("vectornav/raw/imu", 10);
+  }
+  
+  if(enable_gps_pub_){
+    pub_gps_ = this->create_publisher<vectornav_msgs::msg::GpsGroup>("vectornav/raw/gps", 10);
+  }
+  if(enable_attitude_pub_){
+    pub_attitude_ =
+    this->create_publisher<vectornav_msgs::msg::AttitudeGroup>("vectornav/raw/attitude", 10);
+  }
+  if(enable_ins_pub_){
+    pub_ins_ = this->create_publisher<vectornav_msgs::msg::InsGroup>("vectornav/raw/ins", 10);
+  }
+  
+  if(enable_gps2_pub_){
+    pub_gps2_ = this->create_publisher<vectornav_msgs::msg::GpsGroup>("vectornav/raw/gps2", 10);
+  }
+  
+  if(vel_aid_topic != ""){
+    sub_vel_aiding_ = this->create_subscription<geometry_msgs::msg::Twist>(
+      vel_aid_topic, 1, std::bind(&Vectornav::vel_aiding_cb, this, _1));
+  }
+  
+  if(get_parameter("print_sensor_status").as_bool()){
+    srv_diagnostics_ = this->create_service<vectornav_msgs::srv::Diagnostics>("print_diagnostics", std::bind(&Vectornav::diagnosticsCb, this, std::placeholders::_1, std::placeholders::_2));
+
+  }
+
+  
 
   // magnetic cal action
   server_mag_cal_ = rclcpp_action::create_server<MagCal>(
     this, "vectornav/mag_cal", std::bind(&Vectornav::handle_cal_goal, this, _1, _2),
     std::bind(&Vectornav::handle_cal_cancel, this, _1),
     std::bind(&Vectornav::handle_cal_accept, this, _1));
-
+  
   if (!optimize_serial_communication(port)) {
     RCLCPP_WARN(get_logger(), "time of message delivery may be compromised!");
   }
@@ -182,6 +278,23 @@ Vectornav::Vectornav(const rclcpp::NodeOptions & options) : Node("vectornav", op
   }
 }
 
+
+void Vectornav::diagnosticsCb(const std::shared_ptr<vectornav_msgs::srv::Diagnostics::Request> request,
+  std::shared_ptr<vectornav_msgs::srv::Diagnostics::Response> response)
+  {
+    auto vpeControl = vs_->readVpeBasicControl();
+    std::cout << "Heading Mode: " << vpeControl.headingMode << std::endl;
+    response->success = true;
+  }
+
+
+
+
+
+
+/**
+ * ~Vectornav: safely shuts down all ROS2 nodes and disconnects from the sensor
+ */
 Vectornav::~Vectornav()
 {
   if (reconnect_timer_) {
@@ -192,6 +305,10 @@ Vectornav::~Vectornav()
   vs_->unregisterAsyncPacketReceivedHandler();
   vs_->disconnect();
 }
+
+/**
+ * optimize_serial_communication: serial port configuration
+ */
 bool Vectornav::optimize_serial_communication(const std::string & portName)
 {
 #if __linux__ || __CYGWIN__
@@ -216,10 +333,9 @@ bool Vectornav::optimize_serial_communication(const std::string & portName)
 }
 
 /**
-   * Periodically check for connection drops and try to reconnect
-   *
-   * Monitor rate is configured via the 'reconnect_ms' parameter, Set to zero to disable.
-   */
+* reconnect_timer: Periodically check for connection drops and try to reconnect
+* - Monitor rate is configured via the 'reconnect_ms' parameter, Set to zero to disable.
+*/
 void Vectornav::reconnect_timer()
 {
   // Check if the sensor is connected
@@ -240,6 +356,14 @@ void Vectornav::reconnect_timer()
   }
 }
 
+/*****************************************************************/
+/************************** Calibration **************************/
+/*****************************************************************/
+
+
+/**
+ * handle_cal_goal: checks for running action. If not running, accepts. Otherwise, rejects.
+ */
 rclcpp_action::GoalResponse Vectornav::handle_cal_goal(
   const rclcpp_action::GoalUUID & uuid, std::shared_ptr<const MagCal::Goal> goal)
 {
@@ -253,6 +377,9 @@ rclcpp_action::GoalResponse Vectornav::handle_cal_goal(
   return rclcpp_action::GoalResponse::REJECT;
 }
 
+/**
+ * handle_cal_cancel: cancels the goal (ROS2 Wrapper)
+ */
 rclcpp_action::CancelResponse Vectornav::handle_cal_cancel(const std::shared_ptr<MagCalGH> goal_handle)
 {
   RCLCPP_INFO(get_logger(), "Recieved request to stop magnetic calibration");
@@ -260,6 +387,9 @@ rclcpp_action::CancelResponse Vectornav::handle_cal_cancel(const std::shared_ptr
   return rclcpp_action::CancelResponse::ACCEPT;
 }
 
+/**
+ * handle_cal_accept: accepts goal and detaches a threaded process to run the calibration.
+ */
 void Vectornav::handle_cal_accept(const std::shared_ptr<MagCalGH> goal_handle)
 {
   // send the task execution off to the child thread
@@ -267,6 +397,9 @@ void Vectornav::handle_cal_accept(const std::shared_ptr<MagCalGH> goal_handle)
   action_thread_.detach();
 }
 
+/**
+ * execute_cal: calibration process. Working in detached thread.
+ */
 void Vectornav::execute_cal(const std::shared_ptr<MagCalGH> goal_handle)
 {
   // A note for future developers:
@@ -471,6 +604,11 @@ void Vectornav::execute_cal(const std::shared_ptr<MagCalGH> goal_handle)
   }
 }
 
+
+/*****************************************************************/
+/************************* Sensor  Setup *************************/
+/*****************************************************************/
+
 /**
    * Callback to take twist message and pass it to VN as velocity aiding 
    *
@@ -564,6 +702,15 @@ bool Vectornav::connect(const std::string port, const int baud)
   uint32_t hv = vs_->readHardwareRevision();
   uint32_t sn = vs_->readSerialNumber();
   std::string ut = vs_->readUserTag();
+  
+
+  //TODO: (Isaac) Add a full diagnostics option to print all parameters
+  // Read Magnetic and Gravity References
+  auto magRefs = vs_->readReferenceVectorConfiguration();
+  bool useMagModel = magRefs.useMagModel;
+  bool useGravityModelIn = magRefs.useGravityModel;
+  uint32_t recalcThreshold = magRefs.recalcThreshold;
+  
 
   RCLCPP_INFO(get_logger(), "Connected to %s @ %d baud", port.c_str(), vs_->baudrate());
   RCLCPP_INFO(get_logger(), "Model: %s", mn.c_str());
@@ -571,6 +718,10 @@ bool Vectornav::connect(const std::string port, const int baud)
   RCLCPP_INFO(get_logger(), "Hardware Version : %d", hv);
   RCLCPP_INFO(get_logger(), "Serial Number : %d", sn);
   RCLCPP_INFO(get_logger(), "User Tag : \"%s\"", ut.c_str());
+
+  
+  
+
 
   return configure_sensor();
 }
@@ -645,6 +796,7 @@ bool Vectornav::configure_sensor()
   // 5.2.11
   vs_->writeBinaryOutput1(boConfigs.at(0));
 
+  
   // Binary Output Register 2
   // 5.2.12
   vs_->writeBinaryOutput2(boConfigs.at(1));
@@ -684,6 +836,44 @@ bool Vectornav::configure_sensor()
       RCLCPP_WARN(get_logger(), "GPS initialization error");
     }
   }
+
+  /*TODO: (Isaac): Add in extra configuration options here*/
+
+    /*WMM options 3.9.1*/
+
+    vn::sensors::ReferenceVectorConfigurationRegister ref_cfg;
+    ref_cfg.useMagModel = get_parameter("use_mag_model").as_bool();
+    ref_cfg.useGravityModel = get_parameter("use_grav_model").as_bool();
+    ref_cfg.recalcThreshold = get_parameter("recalc_threshold").as_int();
+    vn::math::vec3d position;
+    position[0] = get_parameter("WMM_latitude").as_double();
+    position[1] = get_parameter("WMM_longitude").as_double();
+    position[2] = get_parameter("WMM_altitude").as_double();
+    ref_cfg.position = position;
+    auto time_now = std::chrono::system_clock::now();
+    std::time_t t = std::chrono::system_clock::to_time_t(time_now);
+    struct tm* tm_now = std::localtime(&t); //epoch time
+
+    int yr = tm_now->tm_year + 1900; 
+    bool isLeapyr = (yr % 4 == 0 && (yr % 100 != 0 || yr % 4000 != 0));
+    int days = isLeapyr ? 366 : 365; //total days in given year
+
+    ref_cfg.year = yr + (tm_now->tm_yday / days); // years + fraction of days passed in the year
+    
+    
+    vs_->writeReferenceVectorConfiguration(ref_cfg);
+
+
+    auto magRefs = vs_->readReferenceVectorConfiguration();
+    bool useMagModel = magRefs.useMagModel;
+    bool useGravityModelIn = magRefs.useGravityModel;
+    uint32_t recalcThreshold = magRefs.recalcThreshold;
+  
+    RCLCPP_INFO(get_logger(), "Using Mag Model : %i", useMagModel);
+    RCLCPP_INFO(get_logger(), "Using Grav Model : %i", useGravityModelIn);
+    RCLCPP_INFO(get_logger(), "Using Recalc Thresh : %i", recalcThreshold);
+
+    //
 
   // Connection Successful
   return true;
@@ -750,27 +940,33 @@ void Vectornav::AsyncPacketReceivedHandler(
   // Groups
   auto i = 0;
 
-  if (asyncPacket.groups() & vn::protocol::uart::BinaryGroup::BINARYGROUP_COMMON)
+  if ((asyncPacket.groups() & vn::protocol::uart::BinaryGroup::BINARYGROUP_COMMON) && topicEnables.common)
     parseCommonGroup(node, cd, asyncPacket.groupField(i++), timestamp);
 
-  if (asyncPacket.groups() & vn::protocol::uart::BinaryGroup::BINARYGROUP_TIME)
+  if ((asyncPacket.groups() & vn::protocol::uart::BinaryGroup::BINARYGROUP_TIME) && topicEnables.time)
     parseTimeGroup(node, cd, asyncPacket.groupField(i++), timestamp);
 
-  if (asyncPacket.groups() & vn::protocol::uart::BinaryGroup::BINARYGROUP_IMU)
+  if ((asyncPacket.groups() & vn::protocol::uart::BinaryGroup::BINARYGROUP_IMU) && topicEnables.imu)
     parseImuGroup(node, cd, asyncPacket.groupField(i++), timestamp);
 
-  if (asyncPacket.groups() & vn::protocol::uart::BinaryGroup::BINARYGROUP_GPS)
+  if ((asyncPacket.groups() & vn::protocol::uart::BinaryGroup::BINARYGROUP_GPS) && topicEnables.gps)
     parseGpsGroup(node, cd, asyncPacket.groupField(i++), timestamp);
 
-  if (asyncPacket.groups() & vn::protocol::uart::BinaryGroup::BINARYGROUP_ATTITUDE)
+  if ((asyncPacket.groups() & vn::protocol::uart::BinaryGroup::BINARYGROUP_ATTITUDE) && topicEnables.attitude)
     parseAttitudeGroup(node, cd, asyncPacket.groupField(i++), timestamp);
 
-  if (asyncPacket.groups() & vn::protocol::uart::BinaryGroup::BINARYGROUP_INS)
+  if ((asyncPacket.groups() & vn::protocol::uart::BinaryGroup::BINARYGROUP_INS) && topicEnables.ins)
     parseInsGroup(node, cd, asyncPacket.groupField(i++), timestamp);
 
-  if (asyncPacket.groups() & vn::protocol::uart::BinaryGroup::BINARYGROUP_GPS2)
+  if ((asyncPacket.groups() & vn::protocol::uart::BinaryGroup::BINARYGROUP_GPS2) && topicEnables.gps2)
     parseGps2Group(node, cd, asyncPacket.groupField(i++), timestamp);
 }
+
+
+/*****************************************************************/
+/************************* Data  Parsing *************************/
+/*****************************************************************/
+
 
 /** Copy Common Group fields in binary packet to a CompositeData message
    *

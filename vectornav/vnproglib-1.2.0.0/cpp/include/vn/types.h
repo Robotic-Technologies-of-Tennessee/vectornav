@@ -87,9 +87,9 @@ enum BinaryGroup
 /// \brief Flags for the binary group 1 'Common' in the binary output registers.
 enum CommonGroup
 {
-	COMMONGROUP_NONE				= 0x0000,	///< None.
-	COMMONGROUP_TIMESTARTUP			= 0x0001,	///< TimeStartup.
-	COMMONGROUP_TIMEGPS				= 0x0002,	///< TimeGps.
+	COMMONGROUP_NONE				= 0x0000, 	///< None.
+	COMMONGROUP_TIMESTARTUP			= 0x0001,	///< TimeStartup. 
+	COMMONGROUP_TIMEGPS				= 0x0002,	///< TimeGps.	
 	COMMONGROUP_TIMESYNCIN			= 0x0004,	///< TimeSyncIn.
 	COMMONGROUP_YAWPITCHROLL		= 0x0008,	///< YawPitchRoll.
 	COMMONGROUP_QUATERNION			= 0x0010,	///< Quaternion.

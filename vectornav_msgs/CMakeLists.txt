@@ -23,6 +23,7 @@ find_package(rosidl_default_generators REQUIRED)
 # Grab all message files 
 file(GLOB msg_sources RELATIVE ${PROJECT_SOURCE_DIR} msg/*.msg)
 file(GLOB act_sources RELATIVE ${PROJECT_SOURCE_DIR} action/*.action)
+file(GLOB srv_sources RELATIVE ${PROJECT_SOURCE_DIR} srv/*.srv)
 
 message("Grabbing messages ${act_sources}")
 
@@ -30,6 +31,7 @@ message("Grabbing messages ${act_sources}")
 rosidl_generate_interfaces(${PROJECT_NAME}
   ${msg_sources}
   ${act_sources}
+  ${srv_sources}
   DEPENDENCIES geometry_msgs
 )
 

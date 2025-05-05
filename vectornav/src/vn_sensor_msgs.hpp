@@ -96,6 +96,10 @@ inline static double deg2rad(double in) { return in * M_PI / 180.0; }
 
   /// TODO(Dereck): Find default covariance values
 
+  //Enable variables
+  int series_ = 0; //Defines the series of sensor (100 (1), 200 (2), 300 (3))
+  bool time_syncin_en_, time_startup_en_; 
+
   // State Vars
   uint8_t gps_fix_ = vectornav_msgs::msg::GpsGroup::GPSFIX_NOFIX;
   geometry_msgs::msg::Vector3 gps_posu_;

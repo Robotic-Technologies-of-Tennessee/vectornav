@@ -35,19 +35,58 @@ VnSensorMsgs::VnSensorMsgs(const rclcpp::NodeOptions & options) : Node("vn_senso
   declare_parameter<std::vector<double>>(
     "linear_acceleration_covariance", linear_acceleration_covariance_);
   declare_parameter<std::vector<double>>("magnetic_covariance", magnetic_field_covariance_);
+  declare_parameter<std::string>("model", "vn100");
+  declare_parameter<bool>("publish_time_startup", false);
+  declare_parameter<bool>("publish_time_sync_in", false);
 
+
+  //test
+  declare_parameter<double>("roll", 0.0);
+  declare_parameter<double>("pitch", 0.0);
+  declare_parameter<double>("yaw", 0.0);
+
+  std::string model = get_parameter("model").as_string();
+  if(model == "vn100"){
+    series_ = 1;
+  }
+  else if(model == "vn200"){
+    series_ = 2;
+  }
+  else if(model == "vn300"){
+    series_ = 3;
+  }
+  else{
+    RCLCPP_INFO(this->get_logger(), "Invalid model ID. Assuming vn100.");
+    series_ = 1;
+  }
   //
   // Publishers
   //
   // TODO(Dereck): Only publish if data is available from the sensor?
-  pub_time_startup_ =
-    this->create_publisher<sensor_msgs::msg::TimeReference>("vectornav/time_startup", 10);
-  pub_time_gps_ = this->create_publisher<sensor_msgs::msg::TimeReference>("vectornav/time_gps", 10);
-  pub_time_syncin_ =
+  
+  time_startup_en_ = get_parameter("publish_time_startup").as_bool();
+  time_syncin_en_ = get_parameter("publish_time_sync_in").as_bool();
+
+  if(time_startup_en_){
+    pub_time_startup_ = this->create_publisher<sensor_msgs::msg::TimeReference>("vectornav/time_startup", 10);
+  }
+
+  if(time_syncin_en_){
+    pub_time_syncin_ =
     this->create_publisher<sensor_msgs::msg::TimeReference>("vectornav/time_syncin", 10);
-  pub_time_pps_ = this->create_publisher<sensor_msgs::msg::TimeReference>("vectornav/time_pps", 10);
+  }
+
+  
+  if(series_ > 1){
+    pub_time_gps_ = this->create_publisher<sensor_msgs::msg::TimeReference>("vectornav/time_gps", 10);
+    pub_gnss_ = this->create_publisher<sensor_msgs::msg::NavSatFix>("vectornav/gnss", 10);
+    pub_time_pps_ = this->create_publisher<sensor_msgs::msg::TimeReference>("vectornav/time_pps", 10);
+    pub_pose_ =
+    this->create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>("vectornav/pose", 10);
+
+  }
+  
   pub_imu_ = this->create_publisher<sensor_msgs::msg::Imu>("vectornav/imu", 10);
-  pub_gnss_ = this->create_publisher<sensor_msgs::msg::NavSatFix>("vectornav/gnss", 10);
   pub_imu_uncompensated_ =
     this->create_publisher<sensor_msgs::msg::Imu>("vectornav/imu_uncompensated", 10);
   pub_magnetic_ = this->create_publisher<sensor_msgs::msg::MagneticField>("vectornav/magnetic", 10);
@@ -56,12 +95,29 @@ VnSensorMsgs::VnSensorMsgs(const rclcpp::NodeOptions & options) : Node("vn_senso
   pub_pressure_ = this->create_publisher<sensor_msgs::msg::FluidPressure>("vectornav/pressure", 10);
   pub_velocity_ = this->create_publisher<geometry_msgs::msg::TwistWithCovarianceStamped>(
     "vectornav/velocity_body", 10);
-  pub_pose_ =
-    this->create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>("vectornav/pose", 10);
+  
 
   //
   // Subscribers
   //
+
+
+  if(series_ > 1){
+    auto sub_vn_gps_cb = std::bind(&VnSensorMsgs::sub_vn_gps, this, std::placeholders::_1);
+      sub_vn_gps_ = this->create_subscription<vectornav_msgs::msg::GpsGroup>(
+      "vectornav/raw/gps", 10, sub_vn_gps_cb);
+
+      auto sub_vn_ins_cb = std::bind(&VnSensorMsgs::sub_vn_ins, this, std::placeholders::_1);
+      sub_vn_ins_ = this->create_subscription<vectornav_msgs::msg::InsGroup>(
+      "vectornav/raw/ins", 10, sub_vn_ins_cb);
+  }
+
+  if(series_ == 3){
+    auto sub_vn_gps2_cb = std::bind(&VnSensorMsgs::sub_vn_gps2, this, std::placeholders::_1);
+      sub_vn_gps2_ = this->create_subscription<vectornav_msgs::msg::GpsGroup>(
+      "vectornav/raw/gps2", 10, sub_vn_gps2_cb);
+  }
+
   auto sub_vn_common_cb = std::bind(&VnSensorMsgs::sub_vn_common, this, std::placeholders::_1);
   sub_vn_common_ = this->create_subscription<vectornav_msgs::msg::CommonGroup>(
     "vectornav/raw/common", 10, sub_vn_common_cb);
@@ -74,24 +130,13 @@ VnSensorMsgs::VnSensorMsgs(const rclcpp::NodeOptions & options) : Node("vn_senso
   sub_vn_imu_ = this->create_subscription<vectornav_msgs::msg::ImuGroup>(
     "vectornav/raw/imu", 10, sub_vn_imu_cb);
 
-  auto sub_vn_gps_cb = std::bind(&VnSensorMsgs::sub_vn_gps, this, std::placeholders::_1);
-  sub_vn_gps_ = this->create_subscription<vectornav_msgs::msg::GpsGroup>(
-    "vectornav/raw/gps", 10, sub_vn_gps_cb);
-
   auto sub_vn_attitude_cb = std::bind(&VnSensorMsgs::sub_vn_attitude, this, std::placeholders::_1);
   sub_vn_attitude_ = this->create_subscription<vectornav_msgs::msg::AttitudeGroup>(
     "vectornav/raw/attitude", 10, sub_vn_attitude_cb);
 
-  auto sub_vn_ins_cb = std::bind(&VnSensorMsgs::sub_vn_ins, this, std::placeholders::_1);
-  sub_vn_ins_ = this->create_subscription<vectornav_msgs::msg::InsGroup>(
-    "vectornav/raw/ins", 10, sub_vn_ins_cb);
-
-  auto sub_vn_gps2_cb = std::bind(&VnSensorMsgs::sub_vn_gps2, this, std::placeholders::_1);
-  sub_vn_gps2_ = this->create_subscription<vectornav_msgs::msg::GpsGroup>(
-    "vectornav/raw/gps2", 10, sub_vn_gps2_cb);
-
   //enu frame option
   use_enu = get_parameter("use_enu").as_bool();
+  std::cout << "ENU value: " << use_enu <<std::endl;
 }
 
 
@@ -103,13 +148,24 @@ static void convert_vec_frd_to_rfu(const geometry_msgs::msg::Vector3 & vec_frd, 
   vec_rfu.z = -vec_frd.z;
 }
 
-static void convert_to_enu(const geometry_msgs::msg::Quaternion & q_msg_frd2ned, geometry_msgs::msg::Quaternion & q_msg_rfu2enu)
+static void convert_to_enu(const geometry_msgs::msg::Quaternion & q_msg_frd2ned, geometry_msgs::msg::Quaternion & q_msg_rfu2enu/*, double r, double p, double y*/)
 {
   // convert from FRD_TO_NED to RFU_TO_ENU attitude
   static const tf2::Quaternion q_ned2enu(tf2::Vector3(1, 1, 0).normalized(), M_PI);
   static const tf2::Quaternion q_rfu2frd(tf2::Vector3(1, 1, 0).normalized(), M_PI);
+  //static const tf2::Quaternion q_ned2enu(0.707, 0.707, 0.0, 0.0);
+  //static const tf2::Quaternion q_rfu2frd(0.0, 0.0, 0.707, -0.707);
+
+  //tf2::Quaternion q_rot;
+  
+  //double r=3.14159, p=0.0, y=1.5709;
+  //q_rot.setRPY(r,p,y);
+  //std::cout << "q_rot: " << q_rot.getX() << ", " << q_rot.getY() << ", " << q_rot.getZ() << ", " << q_rot.getW() << std::endl;
+//
   tf2::Quaternion q_frd2ned;
   tf2::fromMsg(q_msg_frd2ned, q_frd2ned);
+  //tf2::Quaternion q_rfu2enu = q_rot * q_frd2ned;
+  //q_rfu2enu.normalize();
   tf2::Quaternion q_rfu2enu = q_ned2enu * q_frd2ned * q_rfu2frd;
   q_msg_rfu2enu = tf2::toMsg(q_rfu2enu);
 }
@@ -122,7 +178,7 @@ void VnSensorMsgs::sub_vn_common(const vectornav_msgs::msg::CommonGroup::SharedP
   // RCLCPP_INFO(get_logger(), "Frame ID: '%s'", msg_in->header.frame_id.c_str());
 
   // Time Reference (Startup)
-  {
+  if(time_startup_en_){
     sensor_msgs::msg::TimeReference msg;
     msg.header = msg_in->header;
 
@@ -135,7 +191,7 @@ void VnSensorMsgs::sub_vn_common(const vectornav_msgs::msg::CommonGroup::SharedP
   }
 
   // Time Reference (GPS)
-  {
+  if(series_ > 1){
     sensor_msgs::msg::TimeReference msg;
     msg.header = msg_in->header;
 
@@ -148,7 +204,7 @@ void VnSensorMsgs::sub_vn_common(const vectornav_msgs::msg::CommonGroup::SharedP
   }
 
   // Time Reference (SyncIn)
-  {
+  if(time_syncin_en_){
     sensor_msgs::msg::TimeReference msg;
     msg.header = msg_in->header;
 
@@ -161,7 +217,7 @@ void VnSensorMsgs::sub_vn_common(const vectornav_msgs::msg::CommonGroup::SharedP
   }
 
   // Time Reference (PPS)
-  {
+  if(series_ > 1){
     sensor_msgs::msg::TimeReference msg;
     msg.header = msg_in->header;
 
@@ -181,12 +237,17 @@ void VnSensorMsgs::sub_vn_common(const vectornav_msgs::msg::CommonGroup::SharedP
     if (use_enu) {
       convert_vec_frd_to_rfu(msg_in->angularrate, msg.angular_velocity);
       convert_vec_frd_to_rfu(msg_in->accel, msg.linear_acceleration);
-      convert_to_enu(msg_in->quaternion, msg.orientation);
+      //msg.angular_velocity = msg_in->angularrate;
+      //msg.linear_acceleration = msg_in->accel;
+      convert_to_enu(msg_in->quaternion, msg.orientation);/*, get_parameter("roll").as_double(), get_parameter("pitch").as_double(), get_parameter("yaw").as_double());*/
     } else {
       msg.angular_velocity = msg_in->angularrate;
       msg.linear_acceleration = msg_in->accel;
       msg.orientation = msg_in->quaternion;
     }
+
+//    std::cout << "NED: " << msg_in->quaternion.z << " ENU: " << msg.orientation.z << std::endl;
+//    std::cout << "NED: " << msg_in->quaternion.w << " ENU: " << msg.orientation.w << std::endl;
 
     fill_covariance_from_param("orientation_covariance", msg.orientation_covariance);
     fill_covariance_from_param("angular_velocity_covariance", msg.angular_velocity_covariance);
@@ -253,7 +314,7 @@ void VnSensorMsgs::sub_vn_common(const vectornav_msgs::msg::CommonGroup::SharedP
   }
 
   // GNSS
-  {
+  if(series_ > 1){
     sensor_msgs::msg::NavSatFix msg;
     msg.header = msg_in->header;
 
@@ -297,7 +358,7 @@ void VnSensorMsgs::sub_vn_common(const vectornav_msgs::msg::CommonGroup::SharedP
   }
 
   // Pose
-  {
+  if(series_ > 1){
     geometry_msgs::msg::PoseWithCovarianceStamped msg;
     msg.header = msg_in->header;
     msg.header.frame_id = "earth";

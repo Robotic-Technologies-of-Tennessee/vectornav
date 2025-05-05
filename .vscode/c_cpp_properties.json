@@ -1,0 +1,37 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "${default}",
+        "limitSymbolsToIncludedHeaders": false
+      },
+      "includePath": [
+        "/home/isaac/ROS/fodbot_ws/install/vectornav/include/**",
+        "/home/isaac/ROS/fodbot_ws/install/vectornav_msgs/include/**",
+        "/home/isaac/ROS/fodbot_ws/install/raven/include/**",
+        "/home/isaac/ROS/fodbot_ws/install/stepper_driver/include/**",
+        "/home/isaac/ROS/fodbot_ws/install/sick_scan_xd/include/**",
+        "/home/isaac/ROS/fodbot_ws/install/fodbotlib/include/**",
+        "/home/isaac/ROS/fodbot_ws/install/custom_interfaces/include/**",
+        "/home/isaac/ROS/coverage_ws/install/opennav_row_coverage/include/**",
+        "/home/isaac/ROS/coverage_ws/install/opennav_coverage_navigator/include/**",
+        "/home/isaac/ROS/coverage_ws/install/opennav_coverage_bt/include/**",
+        "/home/isaac/ROS/coverage_ws/install/opennav_coverage/include/**",
+        "/home/isaac/ROS/coverage_ws/install/opennav_coverage_msgs/include/**",
+        "/home/isaac/ROS/coverage_ws/install/backported_bt_navigator/include/**",
+        "/home/isaac/program_files/BehaviorTree.ROS2/install/behaviortree_ros2/include/**",
+        "/home/isaac/program_files/BehaviorTree.ROS2/install/btcpp_ros2_interfaces/include/**",
+        "/opt/ros/humble/include/**",
+        "/home/isaac/ROS/temp_ws/src/navigation_utilities/include/**",
+        "/home/isaac/ROS/temp_ws/src/stepper_driver/include/**",
+        "/usr/include/**"
+      ],
+      "name": "ROS",
+      "intelliSenseMode": "gcc-x64",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "gnu11",
+      "cppStandard": "c++14"
+    }
+  ],
+  "version": 4
+}
