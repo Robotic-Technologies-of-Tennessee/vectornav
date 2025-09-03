@@ -148,7 +148,7 @@ static void convert_vec_frd_to_rfu(const geometry_msgs::msg::Vector3 & vec_frd, 
   vec_rfu.z = -vec_frd.z;
 }
 
-static void convert_to_enu(const geometry_msgs::msg::Quaternion & q_msg_frd2ned, geometry_msgs::msg::Quaternion & q_msg_rfu2enu/*, double r, double p, double y*/)
+static void convert_to_enu(const geometry_msgs::msg::Quaternion & q_msg_frd2ned, geometry_msgs::msg::Quaternion & q_msg_rfu2enu, double r, double p, double y)
 {
   // convert from FRD_TO_NED to RFU_TO_ENU attitude
   static const tf2::Quaternion q_ned2enu(tf2::Vector3(1, 1, 0).normalized(), M_PI);
@@ -162,11 +162,34 @@ static void convert_to_enu(const geometry_msgs::msg::Quaternion & q_msg_frd2ned,
   //q_rot.setRPY(r,p,y);
   //std::cout << "q_rot: " << q_rot.getX() << ", " << q_rot.getY() << ", " << q_rot.getZ() << ", " << q_rot.getW() << std::endl;
 //
+  bool transform = false;
+  tf2::Quaternion q_rot;
+  if(r > 0)
+  {
+    q_rot.setRPY(r, 0, 0);
+    transform = true;
+  }
+  else if(p > 0)
+  {
+    q_rot.setRPY(0, p, 0);
+    transform = true;
+  }
+  else if(y > 0)
+  {
+    q_rot.setRPY(0, 0, y);
+    transform = true;
+  }
+
+
   tf2::Quaternion q_frd2ned;
   tf2::fromMsg(q_msg_frd2ned, q_frd2ned);
   //tf2::Quaternion q_rfu2enu = q_rot * q_frd2ned;
   //q_rfu2enu.normalize();
   tf2::Quaternion q_rfu2enu = q_ned2enu * q_frd2ned * q_rfu2frd;
+  if(transform)
+  {
+    q_rfu2enu = q_rot * q_rfu2enu;
+  }
   q_msg_rfu2enu = tf2::toMsg(q_rfu2enu);
 }
 
@@ -239,7 +262,7 @@ void VnSensorMsgs::sub_vn_common(const vectornav_msgs::msg::CommonGroup::SharedP
       convert_vec_frd_to_rfu(msg_in->accel, msg.linear_acceleration);
       //msg.angular_velocity = msg_in->angularrate;
       //msg.linear_acceleration = msg_in->accel;
-      convert_to_enu(msg_in->quaternion, msg.orientation);/*, get_parameter("roll").as_double(), get_parameter("pitch").as_double(), get_parameter("yaw").as_double());*/
+      convert_to_enu(msg_in->quaternion, msg.orientation, get_parameter("roll").as_double(), get_parameter("pitch").as_double(), get_parameter("yaw").as_double());
     } else {
       msg.angular_velocity = msg_in->angularrate;
       msg.linear_acceleration = msg_in->accel;
@@ -265,7 +288,7 @@ void VnSensorMsgs::sub_vn_common(const vectornav_msgs::msg::CommonGroup::SharedP
     if (use_enu) {
       convert_vec_frd_to_rfu(msg_in->imu_rate, msg.angular_velocity);
       convert_vec_frd_to_rfu(msg_in->imu_accel, msg.linear_acceleration);
-      convert_to_enu(msg_in->quaternion, msg.orientation);
+      convert_to_enu(msg_in->quaternion, msg.orientation, get_parameter("roll").as_double(), get_parameter("pitch").as_double(), get_parameter("yaw").as_double());
     } else {
       msg.angular_velocity = msg_in->imu_rate;
       msg.linear_acceleration = msg_in->imu_accel;
