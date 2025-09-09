@@ -166,7 +166,7 @@ static void convert_to_enu(const geometry_msgs::msg::Quaternion & q_msg_frd2ned,
   tf2::Quaternion q_rot;
   if(r > 0)
   {
-    q_rot.setRPY(r, 0, 0);
+    q_rot.setRPY(r, 0, y); //FIXME: If this works, take the if statement off!
     transform = true;
   }
   else if(p > 0)
