@@ -170,12 +170,12 @@ static void convert_to_enu(const geometry_msgs::msg::Quaternion & q_msg_frd2ned,
     q_rot_r.setRPY(r, 0, 0); //FIXME: If this works, take the if statement off!
     transformRoll = true;
   }
-  else if(p > 0)
-  {
-    q_rot.setRPY(0, p, 0);
-    transform = true;
-  }
-  
+///  else if(p > 0)
+///  {
+///    q_rot.setRPY(0, p, 0);
+///    .transform = true;
+///  }
+///  
   if(y > 0)
   {
     q_rot_y.setRPY(0, 0, y);
