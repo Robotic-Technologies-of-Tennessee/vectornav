@@ -188,7 +188,7 @@ static void convert_to_enu(const geometry_msgs::msg::Quaternion & q_msg_frd2ned,
   tf2::Quaternion q_rfu2enu = q_ned2enu * q_frd2ned * q_rfu2frd;
   if(transform)
   {
-    q_rfu2enu = q_rot * q_rfu2enu;
+    q_rfu2enu = q_rot * q_rfu2enu * q_rot.inverse();
   }
   q_msg_rfu2enu = tf2::toMsg(q_rfu2enu);
 }
