@@ -162,22 +162,24 @@ static void convert_to_enu(const geometry_msgs::msg::Quaternion & q_msg_frd2ned,
   //q_rot.setRPY(r,p,y);
   //std::cout << "q_rot: " << q_rot.getX() << ", " << q_rot.getY() << ", " << q_rot.getZ() << ", " << q_rot.getW() << std::endl;
 //
-  bool transform = false;
-  tf2::Quaternion q_rot;
+  bool transformRoll = false;
+  bool transformYaw = false;
+  tf2::Quaternion q_rot_r, q_rot_y;
   if(r > 0)
   {
-    q_rot.setRPY(r, 0, y); //FIXME: If this works, take the if statement off!
-    transform = true;
+    q_rot_r.setRPY(r, 0, 0); //FIXME: If this works, take the if statement off!
+    transformRoll = true;
   }
   else if(p > 0)
   {
     q_rot.setRPY(0, p, 0);
     transform = true;
   }
-  else if(y > 0)
+  
+  if(y > 0)
   {
-    q_rot.setRPY(0, 0, y);
-    transform = true;
+    q_rot_y.setRPY(0, 0, y);
+    transformYaw = true;
   }
 
 
@@ -186,9 +188,13 @@ static void convert_to_enu(const geometry_msgs::msg::Quaternion & q_msg_frd2ned,
   //tf2::Quaternion q_rfu2enu = q_rot * q_frd2ned;
   //q_rfu2enu.normalize();
   tf2::Quaternion q_rfu2enu = q_ned2enu * q_frd2ned * q_rfu2frd;
-  if(transform)
+  if(transformRoll)
   {
-    q_rfu2enu = q_rot * q_rfu2enu * q_rot.inverse();
+    q_rfu2enu = q_rot_r * q_rfu2enu;
+  }
+  if(transformYaw)
+  {
+    q_rfu2enu = q_rot_y * q_rfu2enu;
   }
   q_msg_rfu2enu = tf2::toMsg(q_rfu2enu);
 }
