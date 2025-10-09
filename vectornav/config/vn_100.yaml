@@ -74,5 +74,6 @@ vn_sensor_msgs:
                          0.0,   0.0,   0.01]
 
     roll: 3.1415
-    pitch: 3.1415
-    yaw: -1.5708
+    pitch: 0.0
+    yaw: 3.1415
+
