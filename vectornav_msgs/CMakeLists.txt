@@ -20,6 +20,9 @@ find_package(ament_cmake REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 
+# Disable micro-ROS / microxrcedds generation for this package
+set(ROSIDL_TYPESUPPORT_MICROXRCEDDS_CPP OFF)
+
 # Grab all message files 
 file(GLOB msg_sources RELATIVE ${PROJECT_SOURCE_DIR} msg/*.msg)
 file(GLOB act_sources RELATIVE ${PROJECT_SOURCE_DIR} action/*.action)
