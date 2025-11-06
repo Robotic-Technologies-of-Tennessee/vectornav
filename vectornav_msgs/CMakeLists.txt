@@ -39,8 +39,6 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   ${act_sources}
   ${srv_sources}
   DEPENDENCIES geometry_msgs
-  GENERATE_CPP
-  GENERATE_PYTHON
 )
 
 ament_export_dependencies(rosidl_default_runtime)
