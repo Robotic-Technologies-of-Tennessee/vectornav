@@ -15,13 +15,16 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic -Werror)
 endif()
 
+#disable microros builds
+set(ROSIDL_TYPESUPPORT_MICROXRCEDDS_CPP_BUILD OFF CACHE BOOL "Disable microxrcedds type support")
+
+
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 
-# Disable micro-ROS / microxrcedds generation for this package
-set(ROSIDL_TYPESUPPORT_MICROXRCEDDS_CPP OFF)
+
 
 # Grab all message files 
 file(GLOB msg_sources RELATIVE ${PROJECT_SOURCE_DIR} msg/*.msg)
